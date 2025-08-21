@@ -8,10 +8,6 @@ on:
         required: true
         default: false
         type: boolean
-  workflow_run:
-    workflows: ['\[STAGING\] Pre-Release']
-    types:
-      - completed
 
 env: 
   IMAGE_REPO: pbranly
@@ -24,11 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Login DockerHub avec la méthode debug qui fonctionne
+      - name: Login DockerHub
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker --debug login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Generate release version
         id: informations
@@ -37,7 +32,7 @@ jobs:
         run: |
           version=$(cat src/__version__.py | grep VERSION | awk '{print $3}' | tr -d '"')
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          
+
           if [ "$FORCE" == "true" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
@@ -61,12 +56,11 @@ jobs:
   Build-And-Push-Image:
     needs: informations
     if: ${{ needs.informations.outputs.build == 'true' }}
-    uses: MyElectricalData/.github/.github/workflows/dockerhub-build-push.yaml@main
-    with:
-      IMAGE_REPO: ${{ needs.informations.outputs.IMAGE_REPO }}
-      IMAGE_NAME: ${{ needs.informations.outputs.IMAGE_NAME }}
-      PUSH: true
-      TAG: ${{ needs.informations.outputs.version }}
-      LATEST: false
-    secrets:
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    run: |
+      docker build \
+        --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+        --build-arg BUILD_REF=$(git rev-parse --short HEAD) \
+        --build-arg BUILD_VERSION=${{ needs.informations.outputs.version }} \
+        -t ${IMAGE_REPO}/${IMAGE_NAME}:${{ needs.informations.outputs.version }} \
+        .
+      docker push ${IMAGE_REPO}/${IMAGE_NAME}:${{ needs.informations.outputs.version }}
