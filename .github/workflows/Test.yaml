@@ -3,13 +3,16 @@ name: "[DEBUG] Test DockerHub Login"
 on:
   workflow_dispatch:
 
+env:
+  DOCKERHUB_USERNAME: "pbranly"   # ⚠️ mettre ton login DockerHub ici en clair juste pour debug
+
 jobs:
   test-dockerhub:
     runs-on: ubuntu-latest
     steps:
-      - name: Afficher les secrets utilisés (sauf token)
+      - name: Vérifier les variables
         run: |
-          echo "DOCKERHUB_USERNAME = ${{ secrets.DOCKERHUB_USERNAME }}"
+          echo "DOCKERHUB_USERNAME = $DOCKERHUB_USERNAME"
           if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             echo "❌ DOCKERHUB_TOKEN est vide"
             exit 1
@@ -17,11 +20,6 @@ jobs:
             echo "✅ DOCKERHUB_TOKEN est défini (non affiché pour sécurité)"
           fi
 
-      - name: Afficher la commande login (sans exécution)
+      - name: Lancer login avec debug
         run: |
-          echo "👉 La commande qui serait exécutée est :"
-          echo "echo <DOCKERHUB_TOKEN> | docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
-
-      - name: Exécuter le login DockerHub
-        run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker --debug login -u "$DOCKERHUB_USERNAME" --password-stdin
