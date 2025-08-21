@@ -8,10 +8,8 @@ on:
         required: true
         default: false
         type: boolean
-  # repository_dispatch:
-  #   types: [generate_prerelease]
   workflow_run:
-    workflows: ['\[STAGING\] Pre-Release']
+    workflows: ['[STAGING] Pre-Release']
     types:
       - completed
 
@@ -22,14 +20,14 @@ env:
 jobs:
 
   informations:
-    runs-on: [ ubuntu-latest ]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
-          username: ${{ env.IMAGE_REPO }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Generate release version
@@ -37,12 +35,12 @@ jobs:
         env:
           FORCE: ${{ inputs.FORCE }}
         run: |
-          version=$(cat src/__version__.py |grep VERSION| awk '{print $3}' | tr -d '"')
+          version=$(cat src/__version__.py | grep VERSION | awk '{print $3}' | tr -d '"')
           echo "version=${version}" >> "$GITHUB_OUTPUT"          
           if [ $FORCE == 'true' ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"    
           else
-            if [ $(docker manifest inspect ${IMAGE_REPO}/${IMAGE_NAME}:${version}  > /dev/null ; echo $?) -eq 0 ]; then
+            if [ $(docker manifest inspect ${IMAGE_REPO}/${IMAGE_NAME}:${version} > /dev/null ; echo $?) -eq 0 ]; then
               echo "Image already build => SKIP BUILDING"          
               echo "build=false" >> "$GITHUB_OUTPUT"
             else
@@ -51,25 +49,16 @@ jobs:
           fi
           echo "IMAGE_REPO=${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
           echo "IMAGE_NAME=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
     outputs:
       version: ${{ steps.informations.outputs.version }}
       build: ${{ steps.informations.outputs.build }}
       IMAGE_REPO: ${{ steps.informations.outputs.IMAGE_REPO }}
       IMAGE_NAME: ${{ steps.informations.outputs.IMAGE_NAME }}
 
-  Discord-Begin:
-    needs: [informations]
-    if: ${{ needs.informations.outputs.build  == 'true' }}
-    uses: MyElectricalData/.github/.github/workflows/discord.yaml@main
-    with:
-      MESSAGE: '**MyElectricalData** : Version **${{ needs.informations.outputs.version }}** is in building state...'
-    secrets:
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-
   Build-And-Push-Image:
-    needs: [informations, Discord-Begin]
-#    needs: [informations]
-    if: ${{ needs.informations.outputs.build  == 'true' }}
+    needs: informations
+    if: ${{ needs.informations.outputs.build == 'true' }}
     uses: MyElectricalData/.github/.github/workflows/dockerhub-build-push.yaml@main
     with:
       IMAGE_REPO: ${{ needs.informations.outputs.IMAGE_REPO }}
@@ -79,12 +68,3 @@ jobs:
       LATEST: false
     secrets:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  Discord-Finish:
-    needs: [informations, Build-And-Push-Image]
-    if: ${{ needs.informations.outputs.build  == 'true' }}
-    uses: MyElectricalData/.github/.github/workflows/discord.yaml@main
-    with:
-      MESSAGE: '**MyElectricalData** : New version available **${{ needs.informations.outputs.version }}**'
-    secrets:
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
