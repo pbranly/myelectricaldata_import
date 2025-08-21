@@ -8,8 +8,13 @@ on:
         required: true
         default: false
         type: boolean
+  workflow_run:
+    workflows: ['\[STAGING\] Pre-Release']
+    types:
+      - completed
 
 env: 
+  IMAGE_REPO: pbranly
   IMAGE_NAME: myelectricaldatavm
 
 jobs:
@@ -30,19 +35,19 @@ jobs:
         env:
           FORCE: ${{ inputs.FORCE }}
         run: |
-          version=$(cat src/__version__.py | grep VERSION | awk '{print $3}' | tr -d '"')
+          version=$(cat src/__version__.py |grep VERSION| awk '{print $3}' | tr -d '"')
           echo "version=${version}" >> "$GITHUB_OUTPUT"          
-          if [ "$FORCE" == "true" ]; then
+          if [ $FORCE == 'true' ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"    
           else
-            if docker manifest inspect ${{ secrets.DOCKERHUB_USERNAME }}/${IMAGE_NAME}:${version} > /dev/null 2>&1; then
-              echo "Image already exists => SKIP BUILDING"          
+            if [ $(docker manifest inspect ${IMAGE_REPO}/${IMAGE_NAME}:${version} > /dev/null ; echo $?) -eq 0 ]; then
+              echo "Image already built => SKIP BUILDING"          
               echo "build=false" >> "$GITHUB_OUTPUT"
             else
               echo "build=true" >> "$GITHUB_OUTPUT"    
             fi
           fi
-          echo "IMAGE_REPO=${{ secrets.DOCKERHUB_USERNAME }}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_REPO=${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
           echo "IMAGE_NAME=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
 
     outputs:
@@ -52,7 +57,7 @@ jobs:
       IMAGE_NAME: ${{ steps.informations.outputs.IMAGE_NAME }}
 
   Build-And-Push-Image:
-    needs: informations
+    needs: [informations]
     if: ${{ needs.informations.outputs.build == 'true' }}
     uses: MyElectricalData/.github/.github/workflows/dockerhub-build-push.yaml@main
     with:
