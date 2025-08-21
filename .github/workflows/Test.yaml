@@ -1,0 +1,38 @@
+name: "[DEBUG] Test DockerHub Login"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-dockerhub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Afficher les variables d'environnement
+        run: |
+          echo "IMAGE_REPO (username attendu) = ${{ secrets.DOCKERHUB_USERNAME }}"
+          echo "IMAGE_NAME (si défini dans d'autres workflows) = myelectricaldatavm"
+
+      - name: Vérifier que le secret DOCKERHUB_TOKEN est bien défini
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "❌ DOCKERHUB_TOKEN n'est PAS défini"
+            exit 1
+          else
+            echo "✅ DOCKERHUB_TOKEN est défini"
+          fi
+
+      - name: Tentative login DockerHub
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Vérifier accès aux repos
+        run: |
+          echo "👉 Test de récupération d'informations sur le repo"
+          curl -s -o /dev/null -w "%{http_code}\n" https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/
+          echo "👉 Liste des images déjà publiées (limité à 5):"
+          curl -s https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/?page_size=5 | jq .
+
+      - name: Vérifier si image myelectricaldatavm existe déjà
+        run: |
+          echo "👉 Vérification si image existe déjà"
+          curl -s https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/myelectricaldatavm/tags/?page_size=5 | jq .
