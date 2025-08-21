@@ -7,32 +7,21 @@ jobs:
   test-dockerhub:
     runs-on: ubuntu-latest
     steps:
-      - name: Afficher les variables d'environnement
+      - name: Afficher les secrets utilisés (sauf token)
         run: |
-          echo "IMAGE_REPO (username attendu) = ${{ secrets.DOCKERHUB_USERNAME }}"
-          echo "IMAGE_NAME (si défini dans d'autres workflows) = myelectricaldatavm"
-
-      - name: Vérifier que le secret DOCKERHUB_TOKEN est bien défini
-        run: |
+          echo "DOCKERHUB_USERNAME = ${{ secrets.DOCKERHUB_USERNAME }}"
           if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "❌ DOCKERHUB_TOKEN n'est PAS défini"
+            echo "❌ DOCKERHUB_TOKEN est vide"
             exit 1
           else
-            echo "✅ DOCKERHUB_TOKEN est défini"
+            echo "✅ DOCKERHUB_TOKEN est défini (non affiché pour sécurité)"
           fi
 
-      - name: Tentative login DockerHub
+      - name: Afficher la commande login (sans exécution)
+        run: |
+          echo "👉 La commande qui serait exécutée est :"
+          echo "echo <DOCKERHUB_TOKEN> | docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
+
+      - name: Exécuter le login DockerHub
         run: |
           echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: Vérifier accès aux repos
-        run: |
-          echo "👉 Test de récupération d'informations sur le repo"
-          curl -s -o /dev/null -w "%{http_code}\n" https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/
-          echo "👉 Liste des images déjà publiées (limité à 5):"
-          curl -s https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/?page_size=5 | jq .
-
-      - name: Vérifier si image myelectricaldatavm existe déjà
-        run: |
-          echo "👉 Vérification si image existe déjà"
-          curl -s https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/myelectricaldatavm/tags/?page_size=5 | jq .
