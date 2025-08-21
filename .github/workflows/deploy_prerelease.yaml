@@ -24,6 +24,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Debug secrets
+        run: |
+          echo "✅ Username DockerHub: ${{ secrets.DOCKERHUB_USERNAME }}"
+          echo "✅ Token DockerHub (first 6 chars): ${DOCKERHUB_TOKEN:0:6}..."
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -37,10 +44,10 @@ jobs:
         run: |
           version=$(cat src/__version__.py |grep VERSION| awk '{print $3}' | tr -d '"')
           echo "version=${version}" >> "$GITHUB_OUTPUT"          
-          if [ $FORCE == 'true' ]; then
+          if [ "$FORCE" == "true" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"    
           else
-            if [ $(docker manifest inspect ${IMAGE_REPO}/${IMAGE_NAME}:${version} > /dev/null ; echo $?) -eq 0 ]; then
+            if docker manifest inspect ${IMAGE_REPO}/${IMAGE_NAME}:${version} > /dev/null 2>&1; then
               echo "Image already built => SKIP BUILDING"          
               echo "build=false" >> "$GITHUB_OUTPUT"
             else
