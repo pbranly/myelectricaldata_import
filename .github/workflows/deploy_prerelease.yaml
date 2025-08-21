@@ -16,8 +16,8 @@ on:
       - completed
 
 env: 
-  IMAGE_REPO: m4dm4rtig4n
-  IMAGE_NAME: myelectricaldata
+  IMAGE_REPO: pbranly
+  IMAGE_NAME: myelectricaldatavm
 
 jobs:
 
