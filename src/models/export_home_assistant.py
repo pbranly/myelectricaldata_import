@@ -106,13 +106,13 @@ class HomeAssistant:  # pylint: disable=R0902
             self.offpeak_hours_6: str = None
 
     def __init__(self, usage_point_id):
-        DB(self.usage_point_id) = usage_point_id
+        self.usage_point_id = usage_point_id
         self.date_format = "%Y-%m-%d"
         self.date_format_detail = "%Y-%m-%d %H:%M:%S"
-        self.config_usage_point = DB.get_usage_point(DB(self.usage_point_id))
+        self.config_usage_point = DB.get_usage_point(self.usage_point_id)
         self.config = None
         self.load_config()
-        self.usage_point = DB.get_usage_point(DB(self.usage_point_id))
+        self.usage_point = DB.get_usage_point(self.usage_point_id)
         self.mqtt = MQTT
         self.tempo_color = None
 
@@ -131,7 +131,7 @@ class HomeAssistant:  # pylint: disable=R0902
             if key in config_ha_config:
                 setattr(self.config, key, config_ha_config[key])
 
-        contract = DB.get_contract(DB(self.usage_point_id))
+        contract = DB.get_contract(self.usage_point_id)
         for key in self.config.__dict__:
             if hasattr(contract, key):
                 setattr(self.config, key, getattr(contract, key))
@@ -216,26 +216,26 @@ class HomeAssistant:  # pylint: disable=R0902
             days (int): The number of days to retrieve data for.
             measurement_direction (str): The direction of the measurement (e.g., consumption or production).
         """
-        uniq_id = f"myelectricaldata_linky_{DB(self.usage_point_id)}_{measurement_direction}_last{days}day"
+        uniq_id = f"myelectricaldata_linky_{self.usage_point_id}_{measurement_direction}_last{days}day"
         end = datetime.combine(datetime.now(tz=UTC) - timedelta(days=1), datetime.max.time())
         begin = datetime.combine(end - timedelta(days), datetime.min.time())
-        range = DB.get_detail_range(DB(self.usage_point_id), begin, end, measurement_direction)
+        range = DB.get_detail_range(self.usage_point_id, begin, end, measurement_direction)
         attributes = {"time": [], measurement_direction: []}
         for data in range:
             attributes["time"].append(data.date.strftime("%Y-%m-%d %H:%M:%S"))
             attributes[measurement_direction].append(data.value)
         self.sensor(
-            topic=f"myelectricaldata_{measurement_direction}_last_{days}_day/{DB(self.usage_point_id)}",
+            topic=f"myelectricaldata_{measurement_direction}_last_{days}_day/{self.usage_point_id}",
             name=f"{measurement_direction}.last{days}day",
-            device_name=f"Linky {DB(self.usage_point_id)}",
-            device_model=f"linky {DB(self.usage_point_id)}",
-            device_identifiers=f"{DB(self.usage_point_id)}",
+            device_name=f"Linky {self.usage_point_id}",
+            device_model=f"linky {self.usage_point_id}",
+            device_identifiers=f"{self.usage_point_id}",
             uniq_id=uniq_id,
             unit_of_measurement="kWh",
             attributes=attributes,
             state=days,
             device_class="energy",
-            numPDL=DB(self.usage_point_id),
+            numPDL=self.usage_point_id,
         )
 
     def history_usage_point_id(self, measurement_direction):
@@ -244,9 +244,9 @@ class HomeAssistant:  # pylint: disable=R0902
         Args:
             measurement_direction (str): The direction of the measurement (e.g., "consumption", "production").
         """
-        uniq_id = f"myelectricaldata_linky_{DB(self.usage_point_id)}_{measurement_direction}_history"
-        stats = Stat(DB(self.usage_point_id), measurement_direction)
-        state = DB.get_daily_last(DB(self.usage_point_id), measurement_direction)
+        uniq_id = f"myelectricaldata_linky_{self.usage_point_id}_{measurement_direction}_history"
+        stats = Stat(self.usage_point_id, measurement_direction)
+        state = DB.get_daily_last(self.usage_point_id, measurement_direction)
         if state:
             state = state.value
         else:
@@ -254,17 +254,17 @@ class HomeAssistant:  # pylint: disable=R0902
         state = convert_kw(state)
         attributes = {"yesterdayDate": stats.daily(0)["begin"]}
         self.sensor(
-            topic=f"myelectricaldata_{measurement_direction}_history/{DB(self.usage_point_id)}",
+            topic=f"myelectricaldata_{measurement_direction}_history/{self.usage_point_id}",
             name=f"{measurement_direction}.history",
-            device_name=f"Linky {DB(self.usage_point_id)}",
-            device_model=f"linky {DB(self.usage_point_id)}",
-            device_identifiers=f"{DB(self.usage_point_id)}",
+            device_name=f"Linky {self.usage_point_id}",
+            device_model=f"linky {self.usage_point_id}",
+            device_identifiers=f"{self.usage_point_id}",
             uniq_id=uniq_id,
             unit_of_measurement="kWh",
             attributes=attributes,
             state=state,
             device_class="energy",
-            numPDL=DB(self.usage_point_id),
+            numPDL=self.usage_point_id,
         )
 
     def myelectricaldata_usage_point_id(self, measurement_direction):  # noqa: PLR0912, PLR0915, C901
@@ -277,8 +277,8 @@ class HomeAssistant:  # pylint: disable=R0902
             dict: A dictionary containing various statistics related to energy consumption, such as daily, weekly,
                   monthly, and yearly values.
         """
-        stats = Stat(DB(self.usage_point_id), measurement_direction)
-        state = DB.get_daily_last(DB(self.usage_point_id), measurement_direction)
+        stats = Stat(self.usage_point_id, measurement_direction)
+        state = DB.get_daily_last(self.usage_point_id, measurement_direction)
         if state:
             state = state.value
         else:
@@ -403,7 +403,7 @@ class HomeAssistant:  # pylint: disable=R0902
         monthly_evolution = stats.monthly_evolution()
         yearly_evolution = stats.yearly_evolution()
         yesterday_last_year = DB.get_daily_date(
-            DB(self.usage_point_id),
+            self.usage_point_id,
             datetime.combine(yesterday_last_year, datetime.min.time()),
         )
         dailyweek_cost = []
@@ -414,7 +414,7 @@ class HomeAssistant:  # pylint: disable=R0902
         yesterday_hp_value_cost = 0
         if measurement_direction == "consumption":
             daily_cost = 0
-            plan = DB.get_usage_point_plan(DB(self.usage_point_id)).upper()
+            plan = DB.get_usage_point_plan(self.usage_point_id).upper()
             if plan in ("HC/HP", "HC/HP"):
                 for i in range(7):
                     hp = stats.detail(i, "HP")["value"]
@@ -434,34 +434,35 @@ class HomeAssistant:  # pylint: disable=R0902
             elif plan == "TEMPO":
                 tempo_config = DB.get_tempo_config("price")
                 for i in range(7):
-                    tempo_stat = stats.tempo(i)
-                    if not tempo_stat or "value" not in tempo_stat or tempo_stat["value"] is None:
-                        logging.warning(f"Aucune donnée TEMPO pour le jour {i}, valeurs par défaut utilisées")
-                        tempo_data = {"blue_hp": 0, "white_hp": 0, "red_hp": 0, "blue_hc": 0, "white_hc": 0, "red_hc": 0}
-                    else:
-                        tempo_data = tempo_stat["value"]
-
+                    tempo_data = stats.tempo(i)["value"]
                     hp = tempo_data["blue_hp"] + tempo_data["white_hp"] + tempo_data["red_hp"]
                     hc = tempo_data["blue_hc"] + tempo_data["white_hc"] + tempo_data["red_hc"]
-
                     dailyweek_hp.append(convert_kw(hp))
                     dailyweek_hc.append(convert_kw(hc))
-
                     cost_hp = (
-                        convert_kw_to_euro(tempo_data.get("blue_hp", 0), convert_price(tempo_config["blue_hp"]))
-                        + convert_kw_to_euro(tempo_data.get("white_hp", 0), convert_price(tempo_config["white_hp"]))
-                        + convert_kw_to_euro(tempo_data.get("red_hp", 0), convert_price(tempo_config["red_hp"]))
+                        convert_kw_to_euro(
+                            tempo_data["blue_hp"],
+                            convert_price(tempo_config["blue_hp"]),
+                        )
+                        + convert_kw_to_euro(
+                            tempo_data["white_hp"],
+                            convert_price(tempo_config["white_hp"]),
+                        )
+                        + convert_kw_to_euro(tempo_data["red_hp"], convert_price(tempo_config["red_hp"]))
                     )
-
                     cost_hc = (
-                        convert_kw_to_euro(tempo_data.get("blue_hc", 0), convert_price(tempo_config["blue_hc"]))
-                        + convert_kw_to_euro(tempo_data.get("white_hc", 0), convert_price(tempo_config["white_hc"]))
-                        + convert_kw_to_euro(tempo_data.get("red_hc", 0), convert_price(tempo_config["red_hc"]))
+                        convert_kw_to_euro(
+                            tempo_data["blue_hc"],
+                            convert_price(tempo_config["blue_hc"]),
+                        )
+                        + convert_kw_to_euro(
+                            tempo_data["white_hc"],
+                            convert_price(tempo_config["white_hc"]),
+                        )
+                        + convert_kw_to_euro(tempo_data["red_hc"], convert_price(tempo_config["red_hc"]))
                     )
-
                     dailyweek_cost_hp.append(cost_hp)
                     dailyweek_cost_hc.append(cost_hc)
-
                     value = cost_hp + cost_hc
                     if i == 0:
                         daily_cost = value
@@ -501,7 +502,7 @@ class HomeAssistant:  # pylint: disable=R0902
         if self.config.consumption_max_power:
             yesterday_consumption_max_power = stats.max_power(0)["value"]
 
-        error_last_call = DB.get_error_log(DB(self.usage_point_id))
+        error_last_call = DB.get_error_log(self.usage_point_id)
         if error_last_call is None:
             error_last_call = ""
 
@@ -614,7 +615,7 @@ class HomeAssistant:  # pylint: disable=R0902
             "current_month_evolution": round(current_month_evolution, 2),
             "yesterday_evolution": round(yesterday_evolution, 2),
             "yearly_evolution": round(yearly_evolution, 2),
-            "friendly_name": f"myelectricaldata.{DB(self.usage_point_id)}",
+            "friendly_name": f"myelectricaldata.{self.usage_point_id}",
             "errorLastCall": error_last_call,
             "errorLastCallInterne": "",
             "current_week_number": yesterday.strftime("%V"),
@@ -624,19 +625,19 @@ class HomeAssistant:  # pylint: disable=R0902
             # "info": info
         }
 
-        uniq_id = f"myelectricaldata_linky_{DB(self.usage_point_id)}_{measurement_direction}"
+        uniq_id = f"myelectricaldata_linky_{self.usage_point_id}_{measurement_direction}"
         self.sensor(
-            topic=f"myelectricaldata_{measurement_direction}/{DB(self.usage_point_id)}",
+            topic=f"myelectricaldata_{measurement_direction}/{self.usage_point_id}",
             name=f"{measurement_direction}",
-            device_name=f"Linky {DB(self.usage_point_id)}",
-            device_model=f"linky {DB(self.usage_point_id)}",
-            device_identifiers=f"{DB(self.usage_point_id)}",
+            device_name=f"Linky {self.usage_point_id}",
+            device_model=f"linky {self.usage_point_id}",
+            device_identifiers=f"{self.usage_point_id}",
             uniq_id=uniq_id,
             unit_of_measurement="kWh",
             attributes=attributes,
             state=convert_kw(state),
             device_class="energy",
-            numPDL=DB(self.usage_point_id),
+            numPDL=self.usage_point_id,
         )
 
     def tempo(self):
