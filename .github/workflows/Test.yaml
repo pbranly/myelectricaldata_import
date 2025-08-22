@@ -1,10 +1,10 @@
-name: "[DEBUG] Inspect Docker Config"
+name: "[DEBUG] Test DockerHub Login + File"
 
 on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_USERNAME: "pbranly"   # ⚠️ ton login DockerHub en clair pour debug
+  DOCKERHUB_USERNAME: "pbranly"   # ⚠️ ton login en clair, juste pour debug
 
 jobs:
   test-dockerhub:
@@ -20,14 +20,22 @@ jobs:
             echo "✅ DOCKERHUB_TOKEN est défini (non affiché pour sécurité)"
           fi
 
-      - name: Login DockerHub
+      - name: Login DockerHub avec debug
         run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker --debug login -u "$DOCKERHUB_USERNAME" --password-stdin
 
-      - name: Inspecter ~/.docker/config.json
+      - name: Créer un fichier test.json dans un conteneur
         run: |
-          echo "👉 Contenu brut de ~/.docker/config.json"
-          cat ~/.docker/config.json
+          echo '{"status":"ok","message":"connexion DockerHub réussie"}' > test.json
+          echo "👉 Contenu local de test.json :"
+          cat test.json
 
-          echo "👉 Auth décodée :"
-          cat ~/.docker/config.json | jq -r '.auths["https://index.docker.io/v1/"].auth' | base64 -d
+          echo "👉 Lancer un conteneur et copier test.json dedans..."
+          docker run --name test-container -d alpine sleep 60
+          docker cp test.json test-container:/test.json
+
+          echo "👉 Lire test.json dans le conteneur :"
+          docker exec test-container cat /test.json
+
+          # Nettoyage
+          docker rm -f test-container
