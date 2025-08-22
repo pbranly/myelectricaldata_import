@@ -431,7 +431,7 @@ class HomeAssistant:  # pylint: disable=R0902
                     elif i == 1:
                         yesterday_hp_value_cost = convert_kw_to_euro(hp, self.config.consumption_price_hp)
                     dailyweek_cost.append(round(value, 1))
-elif plan == "TEMPO":
+       elif plan == "TEMPO":
     tempo_config = DB.get_tempo_config("price")
     for i in range(7):
         tempo_stat = stats.tempo(i)
