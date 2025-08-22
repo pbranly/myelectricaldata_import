@@ -1,10 +1,10 @@
-name: "[DEBUG] Test DockerHub Login"
+name: "[DEBUG] Inspect Docker Config"
 
 on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_USERNAME: "pbranly"   # ⚠️ mettre ton login DockerHub ici en clair juste pour debug
+  DOCKERHUB_USERNAME: "pbranly"   # ⚠️ ton login DockerHub en clair pour debug
 
 jobs:
   test-dockerhub:
@@ -20,6 +20,14 @@ jobs:
             echo "✅ DOCKERHUB_TOKEN est défini (non affiché pour sécurité)"
           fi
 
-      - name: Lancer login avec debug
+      - name: Login DockerHub
         run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker --debug login -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Inspecter ~/.docker/config.json
+        run: |
+          echo "👉 Contenu brut de ~/.docker/config.json"
+          cat ~/.docker/config.json
+
+          echo "👉 Auth décodée :"
+          cat ~/.docker/config.json | jq -r '.auths["https://index.docker.io/v1/"].auth' | base64 -d
