@@ -1,41 +1,44 @@
-name: "[DEBUG] Test DockerHub Login + File"
+name: "[DEBUG] Push Image Test with test.json"
 
 on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_USERNAME: "pbranly"   # ⚠️ ton login en clair, juste pour debug
+  DOCKERHUB_USERNAME: "pbranly"
 
 jobs:
   test-dockerhub:
     runs-on: ubuntu-latest
     steps:
-      - name: Vérifier les variables
+      - name: Vérifier variables
         run: |
           echo "DOCKERHUB_USERNAME = $DOCKERHUB_USERNAME"
           if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             echo "❌ DOCKERHUB_TOKEN est vide"
             exit 1
           else
-            echo "✅ DOCKERHUB_TOKEN est défini (non affiché pour sécurité)"
+            echo "✅ DOCKERHUB_TOKEN est défini"
           fi
 
-      - name: Login DockerHub avec debug
+      - name: Login DockerHub
         run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker --debug login -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
-      - name: Créer un fichier test.json dans un conteneur
+      - name: Créer test.json
         run: |
           echo '{"status":"ok","message":"connexion DockerHub réussie"}' > test.json
-          echo "👉 Contenu local de test.json :"
           cat test.json
 
-          echo "👉 Lancer un conteneur et copier test.json dedans..."
-          docker run --name test-container -d alpine sleep 60
-          docker cp test.json test-container:/test.json
+      - name: Construire Dockerfile
+        run: |
+          echo "FROM alpine" > Dockerfile
+          echo "COPY test.json /test.json" >> Dockerfile
+          cat Dockerfile
 
-          echo "👉 Lire test.json dans le conteneur :"
-          docker exec test-container cat /test.json
+      - name: Build image
+        run: |
+          docker build -t $DOCKERHUB_USERNAME/test-json:debug .
 
-          # Nettoyage
-          docker rm -f test-container
+      - name: Push image vers DockerHub
+        run: |
+          docker push $DOCKERHUB_USERNAME/test-json:debug
