@@ -1,0 +1,40 @@
+name: "[DEBUG] Build & Push depuis main"
+
+on:
+  workflow_dispatch:
+
+env:
+  DOCKERHUB_USERNAME: "pbranly"
+  IMAGE_NAME: "myelectricaldatavm"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dépôt (branche main)
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Vérifier variables
+        run: |
+          echo "DOCKERHUB_USERNAME = $DOCKERHUB_USERNAME"
+          echo "IMAGE_NAME = $IMAGE_NAME"
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "❌ DOCKERHUB_TOKEN est vide"
+            exit 1
+          else
+            echo "✅ DOCKERHUB_TOKEN est défini"
+          fi
+
+      - name: Login DockerHub
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Build Docker image depuis repo
+        run: |
+          docker build -t $DOCKERHUB_USERNAME/$IMAGE_NAME:debug .
+
+      - name: Push image vers DockerHub
+        run: |
+          docker push $DOCKERHUB_USERNAME/$IMAGE_NAME:debug
