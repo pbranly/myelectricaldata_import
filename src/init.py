@@ -89,19 +89,15 @@ INFLUXDB = None
 INFLUXDB_CONFIG = CONFIG.influxdb_config()
 if INFLUXDB_CONFIG and "enable" in INFLUXDB_CONFIG and str2bool(INFLUXDB_CONFIG["enable"]):
     INFLUXB_ENABLE = True
-    if "method" in INFLUXDB_CONFIG:
-        method = INFLUXDB_CONFIG["method"]
-    else:
-        method = "SYNCHRONOUS"
+    method = INFLUXDB_CONFIG.get("method", "SYNCHRONOUS")
+    scheme = INFLUXDB_CONFIG.get("scheme", "http")
+    write_options = INFLUXDB_CONFIG.get("batching_options", {})
+    vm_mode = str2bool(INFLUXDB_CONFIG.get("vm_mode", False))
 
-    if "scheme" not in INFLUXDB_CONFIG:
-        INFLUXDB_CONFIG["scheme"] = "http"
+    logging.info(f"Connexion à la base de données : {scheme}://{INFLUXDB_CONFIG['hostname']}:{INFLUXDB_CONFIG['port']} (vm_mode={vm_mode})")
 
-    write_options = []
-    if "batching_options" in INFLUXDB_CONFIG:
-        write_options = INFLUXDB_CONFIG["batching_options"]
     INFLUXDB = InfluxDB(
-        scheme=INFLUXDB_CONFIG["scheme"],
+        scheme=scheme,
         hostname=INFLUXDB_CONFIG["hostname"],
         port=INFLUXDB_CONFIG["port"],
         token=INFLUXDB_CONFIG["token"],
@@ -109,7 +105,9 @@ if INFLUXDB_CONFIG and "enable" in INFLUXDB_CONFIG and str2bool(INFLUXDB_CONFIG[
         bucket=INFLUXDB_CONFIG["bucket"],
         method=method,
         write_options=write_options,
+        vm_mode=vm_mode  # <-- ✅ Ajout important
     )
+
     if CONFIG.get("wipe_influxdb"):
         INFLUXDB.purge_influxdb()
         CONFIG.set("wipe_influxdb", False)
