@@ -431,44 +431,43 @@ class HomeAssistant:  # pylint: disable=R0902
                     elif i == 1:
                         yesterday_hp_value_cost = convert_kw_to_euro(hp, self.config.consumption_price_hp)
                     dailyweek_cost.append(round(value, 1))
-            elif plan == "TEMPO":
-                tempo_config = DB.get_tempo_config("price")
-                for i in range(7):
-                    tempo_data = stats.tempo(i)["value"]
-                    hp = tempo_data["blue_hp"] + tempo_data["white_hp"] + tempo_data["red_hp"]
-                    hc = tempo_data["blue_hc"] + tempo_data["white_hc"] + tempo_data["red_hc"]
-                    dailyweek_hp.append(convert_kw(hp))
-                    dailyweek_hc.append(convert_kw(hc))
-                    cost_hp = (
-                        convert_kw_to_euro(
-                            tempo_data["blue_hp"],
-                            convert_price(tempo_config["blue_hp"]),
-                        )
-                        + convert_kw_to_euro(
-                            tempo_data["white_hp"],
-                            convert_price(tempo_config["white_hp"]),
-                        )
-                        + convert_kw_to_euro(tempo_data["red_hp"], convert_price(tempo_config["red_hp"]))
-                    )
-                    cost_hc = (
-                        convert_kw_to_euro(
-                            tempo_data["blue_hc"],
-                            convert_price(tempo_config["blue_hc"]),
-                        )
-                        + convert_kw_to_euro(
-                            tempo_data["white_hc"],
-                            convert_price(tempo_config["white_hc"]),
-                        )
-                        + convert_kw_to_euro(tempo_data["red_hc"], convert_price(tempo_config["red_hc"]))
-                    )
-                    dailyweek_cost_hp.append(cost_hp)
-                    dailyweek_cost_hc.append(cost_hc)
-                    value = cost_hp + cost_hc
-                    if i == 0:
-                        daily_cost = value
-                    elif i == 1:
-                        yesterday_hp_value_cost = cost_hp
-                    dailyweek_cost.append(round(value, 1))
+elif plan == "TEMPO":
+    tempo_config = DB.get_tempo_config("price")
+    for i in range(7):
+        tempo_stat = stats.tempo(i)
+        if not tempo_stat or "value" not in tempo_stat or tempo_stat["value"] is None:
+            logging.warning(f"Aucune donnée TEMPO pour le jour {i}, valeurs par défaut utilisées")
+            tempo_data = {"blue_hp": 0, "white_hp": 0, "red_hp": 0, "blue_hc": 0, "white_hc": 0, "red_hc": 0}
+        else:
+            tempo_data = tempo_stat["value"]
+
+        hp = tempo_data["blue_hp"] + tempo_data["white_hp"] + tempo_data["red_hp"]
+        hc = tempo_data["blue_hc"] + tempo_data["white_hc"] + tempo_data["red_hc"]
+
+        dailyweek_hp.append(convert_kw(hp))
+        dailyweek_hc.append(convert_kw(hc))
+
+        cost_hp = (
+            convert_kw_to_euro(tempo_data.get("blue_hp", 0), convert_price(tempo_config["blue_hp"]))
+            + convert_kw_to_euro(tempo_data.get("white_hp", 0), convert_price(tempo_config["white_hp"]))
+            + convert_kw_to_euro(tempo_data.get("red_hp", 0), convert_price(tempo_config["red_hp"]))
+        )
+
+        cost_hc = (
+            convert_kw_to_euro(tempo_data.get("blue_hc", 0), convert_price(tempo_config["blue_hc"]))
+            + convert_kw_to_euro(tempo_data.get("white_hc", 0), convert_price(tempo_config["white_hc"]))
+            + convert_kw_to_euro(tempo_data.get("red_hc", 0), convert_price(tempo_config["red_hc"]))
+        )
+
+        dailyweek_cost_hp.append(cost_hp)
+        dailyweek_cost_hc.append(cost_hc)
+
+        value = cost_hp + cost_hc
+        if i == 0:
+            daily_cost = value
+        elif i == 1:
+            yesterday_hp_value_cost = cost_hp
+        dailyweek_cost.append(round(value, 1))
             else:
                 for i in range(7):
                     hour_hp = stats.detail(i, "HP")["value"]
