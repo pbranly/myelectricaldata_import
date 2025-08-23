@@ -201,24 +201,24 @@ class Stat:  # pylint: disable=R0902,R0904
         }
 
     def tempo(self, index):
-    now_date = datetime.now(timezone.utc)
-    yesterday_date = datetime.combine(now_date - relativedelta(days=1), datetime.max.time())
-    begin = datetime.combine(yesterday_date - timedelta(days=index), datetime.min.time())
-    end = datetime.combine(begin, datetime.max.time())
-    value = {
-        "blue_hc": 0,
-        "blue_hp": 0,
-        "white_hc": 0,
-        "white_hp": 0,
-        "red_hc": 0,
-        "red_hp": 0,
-    }
-    for data in self.db.get_detail_range(self.usage_point_id, begin, end, self.measurement_direction):
-        # print(data)
-        hour = int(datetime.strftime(data.date, "%H"))
+        now_date = datetime.now(timezone.utc)
+        yesterday_date = datetime.combine(now_date - relativedelta(days=1), datetime.max.time())
+        begin = datetime.combine(yesterday_date - timedelta(days=index), datetime.min.time())
+        end = datetime.combine(begin, datetime.max.time())
+        value = {
+            "blue_hc": 0,
+            "blue_hp": 0,
+            "white_hc": 0,
+            "white_hp": 0,
+            "red_hc": 0,
+            "red_hp": 0,
+         }
+         for data in self.db.get_detail_range(self.usage_point_id, begin, end, self.measurement_direction):
+            # print(data)
+            hour = int(datetime.strftime(data.date, "%H"))
         
         # CORRECTION : Vérification avant l'accès à l'index pour éviter IndexError
-        if hour < 6:
+            if hour < 6:
             previous_day_data = self.db.get_tempo_range(begin - timedelta(days=1), end - timedelta(days=1))
             if previous_day_data:
                 color = previous_day_data[0].color
