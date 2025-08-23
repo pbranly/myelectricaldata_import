@@ -201,36 +201,60 @@ class Stat:  # pylint: disable=R0902,R0904
         }
 
     def tempo(self, index):
-        now_date = datetime.now(timezone.utc)
-        yesterday_date = datetime.combine(now_date - relativedelta(days=1), datetime.max.time())
-        begin = datetime.combine(yesterday_date - timedelta(days=index), datetime.min.time())
-        end = datetime.combine(begin, datetime.max.time())
-        value = {
-            "blue_hc": 0,
-            "blue_hp": 0,
-            "white_hc": 0,
-            "white_hp": 0,
-            "red_hc": 0,
-            "red_hp": 0,
-        }
-        for data in self.db.get_detail_range(self.usage_point_id, begin, end, self.measurement_direction):
-            # print(data)
-            hour = int(datetime.strftime(data.date, "%H"))
-            if hour < 6:
-                color = self.db.get_tempo_range(begin - timedelta(days=1), end - timedelta(days=1))[0].color
-                color = f"{color.lower()}_hc"
-            elif hour >= 22:
-                color = self.db.get_tempo_range(begin + timedelta(days=1), end + timedelta(days=1))[0].color
-                color = f"{color.lower()}_hc"
+    now_date = datetime.now(timezone.utc)
+    yesterday_date = datetime.combine(now_date - relativedelta(days=1), datetime.max.time())
+    begin = datetime.combine(yesterday_date - timedelta(days=index), datetime.min.time())
+    end = datetime.combine(begin, datetime.max.time())
+    value = {
+        "blue_hc": 0,
+        "blue_hp": 0,
+        "white_hc": 0,
+        "white_hp": 0,
+        "red_hc": 0,
+        "red_hp": 0,
+    }
+    for data in self.db.get_detail_range(self.usage_point_id, begin, end, self.measurement_direction):
+        # print(data)
+        hour = int(datetime.strftime(data.date, "%H"))
+        
+        # CORRECTION : Vérification avant l'accès à l'index pour éviter IndexError
+        if hour < 6:
+            previous_day_data = self.db.get_tempo_range(begin - timedelta(days=1), end - timedelta(days=1))
+            if previous_day_data:
+                color = previous_day_data[0].color
             else:
-                color = self.db.get_tempo_range(begin, end)[0].color
-                color = f"{color.lower()}_hp"
+                color = "UNKNOWN"
+                logging.warning(f"No tempo data found for previous day: {begin - timedelta(days=1)}")
+            color = f"{color.lower()}_hc"
+        elif hour >= 22:
+            next_day_data = self.db.get_tempo_range(begin + timedelta(days=1), end + timedelta(days=1))
+            if next_day_data:
+                color = next_day_data[0].color
+            else:
+                color = "UNKNOWN"
+                logging.warning(f"No tempo data found for next day: {begin + timedelta(days=1)}")
+            color = f"{color.lower()}_hc"
+        else:
+            current_day_data = self.db.get_tempo_range(begin, end)
+            if current_day_data:
+                color = current_day_data[0].color
+            else:
+                color = "UNKNOWN"
+                logging.warning(f"No tempo data found for current day: {begin}")
+            color = f"{color.lower()}_hp"
+            
+        # Ajouter la valeur à la couleur correspondante
+        if color in value:
             value[color] += data.value / (60 / data.interval)
-        return {
-            "value": value,
-            "begin": begin.strftime(self.date_format),
-            "end": end.strftime(self.date_format),
-        }
+        else:
+            # Si la couleur n'existe pas dans le dictionnaire, créer une nouvelle entrée
+            value[color] = data.value / (60 / data.interval)
+            
+    return {
+        "value": value,
+        "begin": begin.strftime(self.date_format),
+        "end": end.strftime(self.date_format),
+    }
 
     def tempo_color(self, index=0):
         now_date = datetime.now(timezone.utc)
