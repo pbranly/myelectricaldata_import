@@ -28,28 +28,27 @@ class Detail:
         self.contract = self.db.get_contract(self.usage_point_id)
         self.daily_max_days = int(DETAIL_MAX_DAYS)
         self.max_days_date = datetime.utcnow() - timedelta(days=self.daily_max_days)
+
         if (
             measure_type == "consumption"
             and hasattr(self.usage_point_config, "consumption_detail_max_date")
-            and self.usage_point_config.consumption_detail_max_date != ""
-            and self.usage_point_config.consumption_detail_max_date is not None
+            and self.usage_point_config.consumption_detail_max_date
         ):
             self.activation_date = self.usage_point_config.consumption_detail_max_date
         elif (
             measure_type == "production"
             and hasattr(self.usage_point_config, "production_detail_max_date")
-            and self.usage_point_config.production_detail_max_date != ""
-            and self.usage_point_config.production_detail_max_date is not None
+            and self.usage_point_config.production_detail_max_date
         ):
             self.activation_date = self.usage_point_config.production_detail_max_date
         elif (
             hasattr(self.contract, "last_activation_date")
-            and self.contract.last_activation_date != ""
-            and self.contract.last_activation_date is not None
+            and self.contract.last_activation_date
         ):
             self.activation_date = self.contract.last_activation_date
         else:
             self.activation_date = self.max_days_date
+
         self.offpeak_hours = {
             0: self.usage_point_config.offpeak_hours_0,
             1: self.usage_point_config.offpeak_hours_1,
@@ -70,125 +69,112 @@ class Detail:
             if hasattr(self.usage_point_config, "production_price"):
                 self.base_price = self.usage_point_config.production_price
 
+    def safe_json_loads(self, text):
+        """Charge du JSON de manière sécurisée, même si vide ou invalide."""
+        if not text or not text.strip():
+            return {}
+        try:
+            return json.loads(text)
+        except Exception:
+            logging.warning(f"Réponse non JSON ou invalide : {text[:200]}")
+            return {}
+
     def run(self, begin, end):
         if begin.strftime(self.date_format) == end.strftime(self.date_format):
             end = end + timedelta(days=1)
         begin_str = begin.strftime(self.date_format)
         end_str = end.strftime(self.date_format)
         logging.info(f"Récupération des données : {begin_str} => {end_str}")
+
         endpoint = f"{self.measure_type}_load_curve/{self.usage_point_id}/start/{begin_str}/end/{end_str}"
-        # if begin <= (datetime.now() - timedelta(days=8)):
         if hasattr(self.usage_point_config, "cache") and self.usage_point_config.cache:
             endpoint += "/cache"
+
         try:
             current_data = self.db.get_detail(self.usage_point_id, begin, end, self.measure_type)
-            # current_week = datetime.now() - timedelta(days=self.max_detail + 1)
-            # last_week = False
-            # if current_week <= begin:
-            #     last_week = True
-            # if not current_data["missing_data"] and not last_week:
+
             if not current_data["missing_data"]:
                 logging.info(" => Toutes les données sont déjà en cache.")
                 output = []
                 for date, data in current_data["date"].items():
                     output.append({"date": date, "value": data["value"]})
                 return output
-            else:
-                logging.info(f" Chargement des données depuis MyElectricalData {begin_str} => {end_str}")
-                data = Query(endpoint=f"{self.url}/{endpoint}/", headers=self.headers).get()
-                if hasattr(data, "status_code"):
-                    if data.status_code == 403:
-                        if hasattr(data, "text"):
-                            description = json.loads(data.text)["detail"]
-                        else:
-                            description = data
-                        if hasattr(data, "status_code"):
-                            status_code = data.status_code
-                        else:
-                            status_code = 500
-                        return {
-                            "error": True,
-                            "description": description,
-                            "status_code": status_code,
-                            "exit": True,
-                        }
-                    if data.status_code == 200:
-                        meter_reading = json.loads(data.text)["meter_reading"]
-                        for interval_reading in meter_reading["interval_reading"]:
-                            value = interval_reading["value"]
-                            interval = re.findall(r"\d+", interval_reading["interval_length"])[0]
-                            date = interval_reading["date"]
-                            date_object = datetime.strptime(date, self.date_detail_format)
-                            # CHANGE DATE TO BEGIN RANGE
-                            date = date_object - timedelta(minutes=int(interval))
-                            # date = date.strftime(self.date_detail_format)
-                            # print(date)
-                            # GET WEEKDAY
-                            # date_days = date_object.weekday()
-                            # date_hour_minute = date_object.strftime('%H:%M')
-                            # measure_type = "HP"
-                            # day_offpeak_hours = self.offpeak_hours[date_days]
-                            # if day_offpeak_hours is not None:
-                            #     for offpeak_hour in day_offpeak_hours.split(";"):
-                            #         if offpeak_hour != "None" and offpeak_hour != "" and offpeak_hour is not None:
-                            #             offpeak_begin = offpeak_hour.split("-")[0].replace('h', ':').replace('H', ':')
-                            #             # FORMAT HOUR WITH 2 DIGIT
-                            #             offpeak_begin = datetime.strptime(offpeak_begin, '%H:%M')
-                            #             offpeak_begin = datetime.strftime(offpeak_begin, '%H:%M')
-                            #             offpeak_stop = offpeak_hour.split("-")[1].replace('h', ':').replace('H', ':')
-                            #             # FORMAT HOUR WITH 2 DIGIT
-                            #             offpeak_stop = datetime.strptime(offpeak_stop, '%H:%M')
-                            #             offpeak_stop = datetime.strftime(offpeak_stop, '%H:%M')
-                            #             result = is_between(date_hour_minute, (offpeak_begin, offpeak_stop))
-                            #             if result:
-                            #                 measure_type = "HC"
-                            self.db.insert_detail(
-                                usage_point_id=self.usage_point_id,
-                                date=date,
-                                value=value,
-                                interval=interval,
-                                measure_type="",
-                                blacklist=0,
-                                mesure_type=self.measure_type,
-                            )
-                        return meter_reading["interval_reading"]
-                    else:
-                        return {
-                            "error": True,
-                            "description": json.loads(data.text)["detail"],
-                            "status_code": data.status_code,
-                        }
-                else:
-                    if hasattr(data, "text"):
-                        description = json.loads(data.text)["detail"]
-                    else:
-                        description = data
-                    if hasattr(data, "status_code"):
-                        status_code = data.status_code
-                    else:
-                        status_code = 500
+
+            logging.info(f" Chargement des données depuis MyElectricalData {begin_str} => {end_str}")
+            data = Query(endpoint=f"{self.url}/{endpoint}/", headers=self.headers).get()
+
+            if hasattr(data, "status_code"):
+                parsed = self.safe_json_loads(getattr(data, "text", ""))
+                if data.status_code == 403:
+                    description = parsed.get("detail", "Accès interdit")
                     return {
                         "error": True,
                         "description": description,
-                        "status_code": status_code,
+                        "status_code": data.status_code,
+                        "exit": True,
                     }
+
+                if data.status_code == 200:
+                    if "meter_reading" not in parsed:
+                        return {
+                            "error": True,
+                            "description": "Réponse invalide de MyElectricalData",
+                            "status_code": 200,
+                        }
+                    meter_reading = parsed["meter_reading"]
+                    for interval_reading in meter_reading.get("interval_reading", []):
+                        value = interval_reading["value"]
+                        interval = re.findall(r"\d+", interval_reading["interval_length"])[0]
+                        date = interval_reading["date"]
+                        date_object = datetime.strptime(date, self.date_detail_format)
+                        date = date_object - timedelta(minutes=int(interval))
+
+                        self.db.insert_detail(
+                            usage_point_id=self.usage_point_id,
+                            date=date,
+                            value=value,
+                            interval=interval,
+                            measure_type="",
+                            blacklist=0,
+                            mesure_type=self.measure_type,
+                        )
+                    return meter_reading.get("interval_reading", [])
+
+                return {
+                    "error": True,
+                    "description": parsed.get("detail", "Erreur inconnue"),
+                    "status_code": data.status_code,
+                }
+
+            # Cas où data n’a pas de status_code
+            parsed = self.safe_json_loads(getattr(data, "text", ""))
+            return {
+                "error": True,
+                "description": parsed.get("detail", str(data)),
+                "status_code": getattr(data, "status_code", 500),
+            }
+
         except Exception as e:
             logging.exception(e)
             logging.error(e)
+            return {
+                "error": True,
+                "description": str(e),
+                "status_code": 500,
+            }
 
     def get(self):
         end = datetime.combine((datetime.now() + timedelta(days=2)), datetime.max.time())
         begin = datetime.combine(end - timedelta(days=self.max_detail), datetime.min.time())
         finish = True
         result = []
+
         while finish:
             if self.max_days_date > begin:
-                # Max day reached
                 begin = self.max_days_date
                 finish = False
                 response = self.run(begin, end)
             elif self.activation_date and self.activation_date > begin:
-                # Activation date reached
                 begin = self.activation_date
                 finish = False
                 response = self.run(begin, end)
@@ -196,28 +182,33 @@ class Detail:
                 response = self.run(begin, end)
                 begin = begin - timedelta(days=self.max_detail)
                 end = end - timedelta(days=self.max_detail)
-            if "exit" in response:
-                finish = False
-                response = {
-                    "error": True,
-                    "description": response["description"],
-                    "status_code": response["status_code"],
-                }
-            if response is not None:
-                result = [*result, *response]
-            else:
+
+            if not response:
                 response = {
                     "error": True,
                     "description": "MyElectricalData est indisponible.",
                 }
-            if "error" in response and response["error"]:
-                logging.error("Echec de la récupération des données.")
-                logging.error(f' => {response["description"]}')
-                logging.error(f" => {begin.strftime(self.date_format)} -> {end.strftime(self.date_format)}")
-            if "status_code" in response and (response["status_code"] == 409 or response["status_code"] == 400):
+
+            if isinstance(response, dict) and response.get("exit"):
                 finish = False
-                logging.error("Arrêt de la récupération des données suite à une erreur.")
-                logging.error(f"Prochain lancement à {datetime.now() + timedelta(seconds=self.config.get('cycle'))}")
+                response = {
+                    "error": True,
+                    "description": response.get("description", "Sortie forcée"),
+                    "status_code": response.get("status_code", 500),
+                }
+
+            if isinstance(response, list):
+                result.extend(response)
+            elif isinstance(response, dict):
+                if response.get("error"):
+                    logging.error("Echec de la récupération des données.")
+                    logging.error(f' => {response["description"]}')
+                    logging.error(f" => {begin.strftime(self.date_format)} -> {end.strftime(self.date_format)}")
+                if response.get("status_code") in [400, 409]:
+                    finish = False
+                    logging.error("Arrêt de la récupération des données suite à une erreur.")
+                    logging.error(f"Prochain lancement à {datetime.now() + timedelta(seconds=self.config.get('cycle'))}")
+
         return result
 
     def reset_daily(self, date):
@@ -251,7 +242,15 @@ class Detail:
             datetime.combine(date - timedelta(days=2), datetime.min.time()),
             datetime.combine(date + timedelta(days=2), datetime.min.time()),
         )
-        if "error" in result and result["error"]:
+
+        if not result:
+            return {
+                "error": True,
+                "notif": "MyElectricalData est indisponible.",
+                "fail_count": self.db.get_detail_fail_count(self.usage_point_id, date, self.measure_type),
+            }
+
+        if isinstance(result, dict) and result.get("error"):
             return {
                 "error": True,
                 "notif": result["description"],
@@ -259,10 +258,10 @@ class Detail:
             }
 
         for item in result:
-            if type(item["date"]) == str:
+            if isinstance(item["date"], str):
                 item["date"] = datetime.strptime(item["date"], self.date_detail_format)
             result_date = item["date"].strftime(self.date_format)
-            if date.strftime(self.date_format) in result_date:
+            if date.strftime(self.date_format) == result_date:
                 item["date"] = result_date
                 return item
 
