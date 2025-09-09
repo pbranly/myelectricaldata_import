@@ -61,9 +61,21 @@ class Power:
                 data = Query(endpoint=f"{self.url}/{endpoint}/", headers=self.headers).get()
                 blacklist = 0
                 max_histo = datetime.combine(datetime.now(), datetime.max.time()) - timedelta(days=1)
+
                 if hasattr(data, "status_code"):
                     if data.status_code == 200:
-                        meter_reading = json.loads(data.text)["meter_reading"]
+                        # Sécurisation du parsing JSON
+                        try:
+                            parsed = json.loads(data.text)
+                            meter_reading = parsed["meter_reading"]
+                        except (json.JSONDecodeError, KeyError) as e:
+                            logging.error(f"Réponse invalide (status=200) : {repr(data.text[:500])}")
+                            return {
+                                "error": True,
+                                "description": f"Réponse non-JSON ou invalide : {str(e)}",
+                                "status_code": data.status_code,
+                            }
+
                         interval_reading = meter_reading["interval_reading"]
                         interval_reading_tmp = {}
                         for interval_reading_data in interval_reading:
