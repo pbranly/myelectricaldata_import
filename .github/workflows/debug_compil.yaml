@@ -1,8 +1,12 @@
-name: "[DEBUG] Build & Push Docker Image from Main"
+name: "[DEBUG] Build & Push Docker Image from Git Ref"
 
 on:
   workflow_dispatch:
     inputs:
+      GIT_REF:
+        description: "Branche ou tag Git à utiliser pour le build"
+        required: true
+        default: "main"
       TAG:
         description: "Tag pour l'image Docker"
         required: true
@@ -16,11 +20,11 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Cloner le dépôt depuis la branche main
-      - name: Checkout main
+      # 1️⃣ Cloner le dépôt depuis la branche ou le tag Git choisi
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
-          ref: main
+          ref: ${{ github.event.inputs.GIT_REF }}
 
       # 2️⃣ Vérifier que le secret DockerHub est bien présent
       - name: Vérifier variables
